@@ -1,0 +1,52 @@
+{
+    "manifest_version": 3,
+    "name": "TikDown - TikTok Downloader",
+    "version": "1.0.0",
+    "description": "Download videos and audio from TikTok posts",
+    "author": "ArisaAkiyama",
+    "action": {
+        "default_popup": "popup/popup.html",
+        "default_title": "TikDown",
+        "default_icon": {
+            "16": "icons/icon16.svg",
+            "48": "icons/icon48.svg",
+            "128": "icons/icon128.svg"
+        }
+    },
+    "icons": {
+        "16": "icons/icon16.svg",
+        "48": "icons/icon48.svg",
+        "128": "icons/icon128.svg"
+    },
+    "permissions": [
+        "activeTab",
+        "storage",
+        "scripting",
+        "clipboardRead",
+        "cookies"
+    ],
+    "host_permissions": [
+        "http://localhost:3000/*",
+        "https://www.tiktok.com/*",
+        "https://tiktok.com/*",
+        "https://vm.tiktok.com/*",
+        "https://m.tiktok.com/*",
+        "https://*.tiktokcdn.com/*",
+        "https://*.musical.ly/*"
+    ],
+    "background": {
+        "service_worker": "background.js"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "https://www.tiktok.com/*",
+                "https://tiktok.com/*"
+            ],
+            "js": [
+                "content/page-capture.js"
+            ],
+            "run_at": "document_idle"
+        }
+    ]
+}

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TikDown Settings</title>
+    <link rel="stylesheet" href="settings.css">
+</head>
+
+<body>
+    <div class="container">
+        <header class="header">
+            <button id="backBtn" class="back-btn">← Back</button>
+            <h1>Settings</h1>
+        </header>
+
+        <main class="settings-content">
+            <!-- Server Settings -->
+            <section class="settings-section">
+                <h2>🔗 Server</h2>
+                <div class="setting-item">
+                    <label for="serverUrl">Server URL</label>
+                    <input type="url" id="serverUrl" placeholder="http://localhost:3000">
+                    <p class="hint">URL of the TikDown backend server</p>
+                </div>
+            </section>
+
+            <!-- Download Settings -->
+            <section class="settings-section">
+                <h2>📁 Download</h2>
+                <div class="setting-item">
+                    <label for="downloadPath">Custom Download Path</label>
+                    <input type="text" id="downloadPath" placeholder="Leave empty for default">
+                    <p class="hint">Default: ~/Downloads/TikTok</p>
+                </div>
+            </section>
+
+            <!-- TikTok Login (Cookie Status) -->
+            <section class="settings-section">
+                <h2>🍪 TikTok Login</h2>
+                <div id="loginStatus" class="login-status checking">
+                    <span id="statusIcon">⏳</span>
+                    <span id="statusText">Checking...</span>
+                </div>
+                <p class="hint">Cookies otomatis di-sync saat Anda mengunjungi TikTok.com</p>
+            </section>
+
+            <!-- Server Status -->
+            <section class="settings-section">
+                <h2>💚 Server Status</h2>
+                <div id="serverStatus" class="server-status">
+                    <div class="status-indicator offline"></div>
+                    <span>Checking...</span>
+                </div>
+                <button id="checkStatusBtn" class="btn-secondary">Check Connection</button>
+            </section>
+
+            <!-- About -->
+            <section class="settings-section">
+                <h2>ℹ️ About</h2>
+                <div class="about-content">
+                    <p><strong>TikDown</strong> v1.0.0</p>
+                    <p>Download videos and audio from TikTok</p>
+                    <p class="credits">Made by ArisaAkiyama</p>
+                </div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <button id="saveBtn" class="btn-primary">💾 Save Settings</button>
+            <button id="resetBtn" class="btn-secondary">🔄 Reset to Defaults</button>
+        </footer>
+    </div>
+
+    <script src="settings.js"></script>
+</body>
+
+</html>

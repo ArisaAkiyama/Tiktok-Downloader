@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TikDown - TikTok Video Downloader</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --tiktok-cyan: #25F4EE;
+            --tiktok-pink: #FE2C55;
+            --bg-dark: #121212;
+            --bg-card: #1f1f1f;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+        }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 500px;
+            width: 100%;
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo h1 {
+            font-size: 48px;
+            background: linear-gradient(135deg, var(--tiktok-cyan), var(--tiktok-pink));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        .logo p {
+            color: var(--text-secondary);
+        }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        input {
+            flex: 1;
+            padding: 14px 18px;
+            border: 2px solid #333;
+            border-radius: 12px;
+            background: #2a2a2a;
+            color: var(--text-primary);
+            font-size: 16px;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--tiktok-pink);
+        }
+
+        button {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(135deg, var(--tiktok-pink), #ff0050);
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(254, 44, 85, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-secondary);
+        }
+
+        .results {
+            margin-top: 20px;
+        }
+
+        .media-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: #2a2a2a;
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+
+        .media-thumb {
+            width: 80px;
+            height: 80px;
+            border-radius: 8px;
+            object-fit: cover;
+            background: #333;
+        }
+
+        .media-info {
+            flex: 1;
+        }
+
+        .media-type {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .media-type.video {
+            background: rgba(254, 44, 85, 0.2);
+            color: var(--tiktok-pink);
+        }
+
+        .media-type.audio {
+            background: rgba(37, 244, 238, 0.2);
+            color: var(--tiktok-cyan);
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .error {
+            color: #ff4444;
+            text-align: center;
+            padding: 10px;
+        }
+
+        .loading {
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #333;
+            border-top-color: var(--tiktok-pink);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="logo">
+            <h1>🎵 TikDown</h1>
+            <p>Download videos and audio from TikTok</p>
+        </div>
+
+        <div class="card">
+            <div class="input-group">
+                <input type="url" id="urlInput" placeholder="Paste TikTok video URL...">
+                <button id="downloadBtn">Download</button>
+            </div>
+
+            <div id="loading" class="loading hidden">
+                <div class="spinner"></div>
+            </div>
+
+            <div id="error" class="error hidden"></div>
+
+            <div id="results" class="results hidden"></div>
+        </div>
+
+        <div class="footer">
+            <p>Made by ArisaAkiyama | Server: <span id="serverStatus">Checking...</span></p>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = '/api';
+
+        const urlInput = document.getElementById('urlInput');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const loading = document.getElementById('loading');
+        const error = document.getElementById('error');
+        const results = document.getElementById('results');
+        const serverStatus = document.getElementById('serverStatus');
+
+        // Check server status
+        async function checkServer() {
+            try {
+                const res = await fetch(`${API_URL}/health`);
+                if (res.ok) {
+                    serverStatus.textContent = '🟢 Online';
+                    serverStatus.style.color = '#00c853';
+                } else {
+                    throw new Error();
+                }
+            } catch (e) {
+                serverStatus.textContent = '🔴 Offline';
+                serverStatus.style.color = '#ff4444';
+            }
+        }
+
+        checkServer();
+
+        // Download handler
+        downloadBtn.addEventListener('click', async () => {
+            const url = urlInput.value.trim();
+            if (!url) {
+                showError('Please enter a TikTok URL');
+                return;
+            }
+
+            loading.classList.remove('hidden');
+            error.classList.add('hidden');
+            results.classList.add('hidden');
+            downloadBtn.disabled = true;
+
+            try {
+                const res = await fetch(`${API_URL}/download`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+
+                const data = await res.json();
+
+                if (data.success && data.media) {
+                    showResults(data);
+                } else {
+                    showError(data.error || 'Failed to extract media');
+                }
+            } catch (e) {
+                showError('Server error: ' + e.message);
+            } finally {
+                loading.classList.add('hidden');
+                downloadBtn.disabled = false;
+            }
+        });
+
+        function showError(msg) {
+            error.textContent = msg;
+            error.classList.remove('hidden');
+        }
+
+        function showResults(data) {
+            results.innerHTML = '';
+
+            if (data.username) {
+                const info = document.createElement('p');
+                info.style.marginBottom = '16px';
+                info.style.color = 'var(--text-secondary)';
+                info.textContent = `@${data.username} • ${data.media.length} items`;
+                results.appendChild(info);
+            }
+
+            data.media.forEach((item, i) => {
+                const div = document.createElement('div');
+                div.className = 'media-item';
+
+                const isVideo = item.type === 'video';
+                const thumb = item.thumbnail || (isVideo ? '🎬' : '🎵');
+
+                div.innerHTML = `
+                    ${item.thumbnail
+                        ? `<img class="media-thumb" src="${item.thumbnail}" alt="Thumbnail">`
+                        : `<div class="media-thumb" style="display:flex;align-items:center;justify-content:center;font-size:32px;">${isVideo ? '🎬' : '🎵'}</div>`
+                    }
+                    <div class="media-info">
+                        <span class="media-type ${item.type}">${isVideo ? 'VIDEO' : 'AUDIO'}</span>
+                        <p style="font-size:12px;color:var(--text-secondary);margin-top:4px;">
+                            ${isVideo ? (item.hasWatermark ? 'With watermark' : 'No watermark') : (item.title || 'Audio track')}
+                        </p>
+                    </div>
+                    <a href="${API_URL}/proxy?url=${encodeURIComponent(item.url)}" 
+                       download="${data.username || 'tiktok'}_${Date.now()}_${i + 1}.${isVideo ? 'mp4' : 'mp3'}"
+                       class="btn-small" style="background:var(--tiktok-cyan);color:#000;text-decoration:none;">
+                        ⬇️ Download
+                    </a>
+                `;
+
+                results.appendChild(div);
+            });
+
+            results.classList.remove('hidden');
+        }
+
+        // Enter key handler
+        urlInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') downloadBtn.click();
+        });
+    </script>
+</body>
+
+</html>
