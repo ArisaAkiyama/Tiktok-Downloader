@@ -1,10 +1,15 @@
-# TikDown - TikTok Video Downloader
+# TikDown - TikTok Video & Photo Downloader
 
-Download videos and audio from TikTok with ease. Built with Express.js + Puppeteer backend and Chrome extension.
+[![GitHub](https://img.shields.io/badge/GitHub-ArisaAkiyama-blue?logo=github)](https://github.com/ArisaAkiyama/Tiktok-Downloader)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/Node.js-18+-339933?logo=node.js)](https://nodejs.org/)
+
+Download videos, photos, and audio from TikTok with ease. Built with Express.js + Puppeteer backend and Chrome extension.
 
 ## ✨ Features
 
 - 🎬 **Download Videos** - Download TikTok videos in original quality
+- 📸 **Carousel Photos** - Download all photos from TikTok slideshow/carousel posts
 - 🎵 **Extract Audio** - Download just the music/audio track
 - 🖼️ **Thumbnails** - Get video cover images
 - 📊 **Video Info** - View likes, comments, shares, and caption
@@ -157,4 +162,8 @@ MIT License
 
 ## 👤 Author
 
-Made by ArisaAkiyama
+Made with ❤️ by [ArisaAkiyama](https://github.com/ArisaAkiyama)
+
+## ⭐ Support
+
+If you find this project helpful, please give it a star on [GitHub](https://github.com/ArisaAkiyama/Tiktok-Downloader)!

@@ -2,6 +2,21 @@
 
 All notable changes to TikDown will be documented in this file.
 
+## [1.1.0] - 2025-12-22
+
+### Added
+- 📸 **Carousel Photos Support** - Download all photos from TikTok slideshow/carousel posts
+- Automatic detection of photo vs video posts
+- Multi-photo extraction using Performance API for accurate URL capture
+- Slide navigation automation to capture all images in carousel
+
+### Improved
+- Enhanced page-capture.js for better photo detection
+- Better error handling for carousel posts
+- Updated scraper.js with carousel-specific logic
+
+---
+
 ## [1.0.0] - 2025-12-20
 
 ### Added
