@@ -69,7 +69,7 @@ app.post('/api/set-cookies', async (req, res) => {
         // Save cookies to file
         fs.writeFileSync(COOKIES_PATH, JSON.stringify(cookies, null, 2));
 
-        console.log(`🍪 Cookies saved: ${cookies.length} cookies`);
+        console.log(`🍪 Auto-synced from browser: ${cookies.length} cookies`);
 
         res.json({
             success: true,
@@ -310,6 +310,7 @@ app.get('/api/health', (req, res) => {
  * Body: { url, filename, type, username, downloadPath }
  */
 app.post('/api/save', async (req, res) => {
+    console.log('[Save] Request received:', req.body.filename || 'no filename');
     try {
         const { url, filename, type, username, downloadPath } = req.body;
 

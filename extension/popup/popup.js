@@ -24,6 +24,8 @@ const progressDetail = document.getElementById('progressDetail');
 const videoInfo = document.getElementById('videoInfo');
 const previewPopup = document.getElementById('previewPopup');
 const previewImage = document.getElementById('previewImage');
+const downloadAllBtn = document.getElementById('downloadAllBtn');
+const autoDetectBadge = document.getElementById('autoDetectBadge');
 
 // State
 let currentMedia = [];
@@ -59,6 +61,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             currentTabUrl = tab.url;
             if (isValidTikTokUrl(tab.url)) {
                 urlInput.value = tab.url;
+                // Show auto-detect badge
+                autoDetectBadge.classList.remove('hidden');
+                const isPhoto = tab.url.includes('/photo/');
+                autoDetectBadge.textContent = isPhoto ? 'Photo detected' : 'Video detected';
             }
         }
     } catch (e) {
@@ -75,7 +81,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (state && state.media && !state.isProcessing && stateUrlMatches) {
         displayResults(state);
     } else if (state && state.isProcessing) {
-        showLoading();
+        // Always read progress from storage - it's the most reliable source
+        const storedData = await chrome.storage.local.get('currentProgress');
+        const resumeProgress = storedData.currentProgress || 30;
+        console.log('[TikDown] Resuming from progress:', resumeProgress);
+        showLoading(resumeProgress);
         pollForResults();
     } else {
         // Clear old state if URL changed
@@ -121,6 +131,11 @@ urlInput.addEventListener('keypress', (e) => {
 settingsBtn.addEventListener('click', () => {
     window.location.href = 'settings.html';
 });
+
+// Download All button - with null check
+if (downloadAllBtn) {
+    downloadAllBtn.addEventListener('click', downloadAll);
+}
 
 // Close preview on click outside
 document.addEventListener('click', (e) => {
@@ -187,7 +202,7 @@ async function pollForResults() {
                 const targetProgress = Math.min(50 + (pollCount * 2), 90);
                 if (targetProgress > currentProgress) {
                     currentProgress = targetProgress;
-                    updateProgress(currentProgress, 'Mengekstrak video...');
+                    updateProgress(currentProgress, 'Mengekstrak media...');
                 }
                 retryCount = 0; // Reset retry count on success
             }
@@ -212,19 +227,31 @@ async function pollForResults() {
 // Track current progress for smooth animation
 let currentProgress = 0;
 
-// Show loading state
-function showLoading() {
+// Show loading state - startProgress allows resuming from saved progress
+function showLoading(startProgress = 5) {
     loadingState.classList.remove('hidden');
     errorState.classList.add('hidden');
     resultsSection.classList.add('hidden');
     downloadBtn.disabled = true;
 
-    // Reset progress
-    currentProgress = 5;
-    updateProgress(currentProgress, 'Menghubungkan ke server...');
+    // Clear any existing interval
+    if (loadingState.dataset.progressInterval) {
+        clearInterval(parseInt(loadingState.dataset.progressInterval));
+    }
+
+    // Resume from startProgress (for popup reopen) or start fresh
+    currentProgress = startProgress;
+
+    // Determine detail text based on current progress
+    let detail = 'Menghubungkan ke server...';
+    if (currentProgress > 20) detail = 'Memproses halaman TikTok...';
+    if (currentProgress > 50) detail = 'Mengekstrak media...';
+    if (currentProgress > 75) detail = 'Hampir selesai...';
+
+    updateProgress(currentProgress, detail);
 
     // Smooth progress animation - consistent increments
-    let pollCount = 0;
+    let pollCount = Math.floor((currentProgress - 5) / 2); // Resume from correct count
     const progressInterval = setInterval(() => {
         pollCount++;
         // Calculate smooth progress: starts fast, slows down approaching 90%
@@ -237,10 +264,13 @@ function showLoading() {
             // Change detail text based on progress
             let detail = 'Menghubungkan ke server...';
             if (currentProgress > 20) detail = 'Memproses halaman TikTok...';
-            if (currentProgress > 50) detail = 'Mengekstrak video...';
+            if (currentProgress > 50) detail = 'Mengekstrak media...';
             if (currentProgress > 75) detail = 'Hampir selesai...';
 
             updateProgress(currentProgress, detail);
+
+            // Save progress directly to storage for reliable persistence
+            chrome.storage.local.set({ currentProgress: currentProgress });
         }
     }, 400);
 
@@ -340,7 +370,7 @@ async function displayResults(state) {
     mediaCount.textContent = countText.join(', ');
 
     // Show ready message
-    showToast(`✅ ${currentMedia.length} file siap download`, 'success');
+    showToast(`${currentMedia.length} file siap download`, 'success');
 
     // Clear and populate media list
     mediaList.innerHTML = '';
@@ -351,9 +381,11 @@ async function displayResults(state) {
     });
 
     // Reset Download All button
-    downloadAllBtn.textContent = '💾 Download Semua';
-    downloadAllBtn.disabled = false;
-    downloadAllBtn.style.background = '';
+    if (downloadAllBtn) {
+        downloadAllBtn.textContent = 'Download Semua';
+        downloadAllBtn.disabled = false;
+        downloadAllBtn.style.background = '';
+    }
 
     // Show video info
     if (state.username || state.caption || state.stats) {
@@ -398,8 +430,8 @@ function createMediaItem(item, index) {
     // Thumbnail - use direct URL or fallback to icon
     const thumbUrl = item.thumbnail || (isImage ? item.url : null);
     const thumbHtml = thumbUrl
-        ? `<img class="media-thumb" src="${thumbUrl}" alt="Thumbnail" data-index="${index}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"><div class="media-thumb-fallback" style="display:none;align-items:center;justify-content:center;font-size:24px;width:48px;height:48px;background:#333;border-radius:4px;">${isVideo ? '🎬' : isImage ? '🖼️' : '🎵'}</div>`
-        : `<div class="media-thumb" style="display:flex;align-items:center;justify-content:center;font-size:24px;">${isVideo ? '🎬' : isImage ? '🖼️' : '🎵'}</div>`;
+        ? `<img class="media-thumb" src="${thumbUrl}" alt="Thumbnail" data-index="${index}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"><div class="media-thumb-fallback" style="display:none;align-items:center;justify-content:center;font-size:14px;width:48px;height:48px;background:#333;border-radius:4px;">${isVideo ? 'VID' : isImage ? 'IMG' : 'AUD'}</div>`
+        : `<div class="media-thumb" style="display:flex;align-items:center;justify-content:center;font-size:14px;">${isVideo ? 'VID' : isImage ? 'IMG' : 'AUD'}</div>`;
 
     // Quality/info text
     let infoText = '';
@@ -415,7 +447,7 @@ function createMediaItem(item, index) {
     }
 
     // Type label
-    const typeLabel = isVideo ? '🎬 Video' : isImage ? '🖼️ Foto' : '🎵 Audio';
+    const typeLabel = isVideo ? 'Video' : isImage ? 'Foto' : 'Audio';
 
     div.innerHTML = `
         ${thumbHtml}
@@ -424,7 +456,12 @@ function createMediaItem(item, index) {
             <div class="media-quality">${infoText}</div>
         </div>
         <div class="media-actions">
-            <button class="btn-save" data-index="${index}" title="Simpan ke folder">💾</button>
+            <button class="btn-save" data-index="${index}" title="Simpan ke folder">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M12 3a1 1 0 0 1 1 1v9.59l2.29-2.3a1 1 0 1 1 1.42 1.42l-4 4a1 1 0 0 1-1.42 0l-4-4a1 1 0 1 1 1.42-1.42L11 13.59V4a1 1 0 0 1 1-1z"/>
+                    <rect x="3" y="18" width="18" height="4" rx="2"/>
+                </svg>
+            </button>
         </div>
     `;
 
@@ -523,7 +560,7 @@ async function saveItem(index) {
         const result = await response.json();
 
         if (result.success) {
-            showToast('✅ Berhasil di Download!', 'success');
+            showToast('Berhasil di Download!', 'success');
         } else {
             showToast('Gagal menyimpan: ' + result.error, 'error');
         }
@@ -538,11 +575,21 @@ async function downloadAll() {
 
     let successCount = 0;
     let failCount = 0;
+    const total = currentMedia.length;
 
-    showToast(`Menyimpan ${currentMedia.length} file...`, 'info');
+    // Disable button and show progress
+    if (downloadAllBtn) {
+        downloadAllBtn.disabled = true;
+        downloadAllBtn.textContent = `0/${total}`;
+    }
 
     for (let i = 0; i < currentMedia.length; i++) {
         const item = currentMedia[i];
+
+        // Update button progress
+        if (downloadAllBtn) {
+            downloadAllBtn.textContent = `${i + 1}/${total}`;
+        }
 
         try {
             let response;
@@ -558,8 +605,11 @@ async function downloadAll() {
                     })
                 });
             } else {
-                // Fallback to regular save
-                const ext = item.type === 'video' ? 'mp4' : 'mp3';
+                // Determine extension based on type
+                let ext = 'mp4';
+                if (item.type === 'image') ext = 'jpg';
+                else if (item.type === 'audio') ext = 'mp3';
+
                 const filename = `${currentUsername}_${Date.now()}_${i + 1}.${ext}`;
 
                 response = await fetch(`${settings.serverUrl}/api/save`, {
@@ -586,11 +636,17 @@ async function downloadAll() {
         }
     }
 
+    // Reset button
+    if (downloadAllBtn) {
+        downloadAllBtn.disabled = false;
+        downloadAllBtn.textContent = 'Download Semua';
+    }
+
     if (successCount > 0) {
-        showToast(`✅ ${successCount} file tersimpan!`, 'success');
+        showToast(`${successCount} file tersimpan!`, 'success');
     }
     if (failCount > 0) {
-        showToast(`❌ ${failCount} file gagal`, 'error');
+        showToast(`${failCount} file gagal`, 'error');
     }
 }
 

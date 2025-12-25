@@ -12,42 +12,56 @@ let downloadState = {
     url: null,
     media: null,
     username: null,
-    error: null
+    error: null,
+    progress: 0
 };
 
-// Track last processed URL for cache invalidation
-let lastProcessedUrl = null;
+// Track last processed tab to detect changes
+let lastProcessedTabId = null;
 
 /**
- * Clear badge and reset state
+ * Clear state and badge - reset extension
  */
-function clearBadgeAndState() {
+function clearDownloadState() {
     downloadState = {
         isProcessing: false,
         url: null,
         media: null,
         username: null,
-        error: null
+        error: null,
+        progress: 0
     };
-    lastProcessedUrl = null;
+    lastProcessedTabId = null;
     chrome.action.setBadgeText({ text: '' });
-    console.log('[Background] State cleared due to URL change');
+    console.log('[Background] State cleared');
 }
 
 /**
- * Listen for tab updates (URL changes, refreshes, navigation)
- * Clears badge and state whenever URL changes or page reloads
+ * Listen for tab updates (page refresh/navigation)
+ * Show badge when on downloadable TikTok content
  */
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    // Clear on ANY URL change if we have cached media
-    if (changeInfo.url && downloadState.media) {
-        console.log('[Background] URL changed to:', changeInfo.url.substring(0, 50));
-        clearBadgeAndState();
+    // When page finishes loading, check if it's downloadable TikTok content
+    if (changeInfo.status === 'complete' && tab.url) {
+        if (isValidTikTokUrl(tab.url)) {
+            // Show badge to indicate content is ready to download
+            const isPhoto = tab.url.includes('/photo/');
+            chrome.action.setBadgeText({ text: '●', tabId });
+            chrome.action.setBadgeBackgroundColor({ color: isPhoto ? '#25F4EE' : '#FE2C55', tabId });
+            console.log('[Background] Detected downloadable TikTok content:', isPhoto ? 'photo' : 'video');
+        } else if (tab.url.includes('tiktok.com')) {
+            // On TikTok but not on video/photo page - clear badge
+            chrome.action.setBadgeText({ text: '', tabId });
+        }
     }
 
-    // Clear on page reload/navigation start if we have cached media
-    if (changeInfo.status === 'loading' && downloadState.media) {
-        clearBadgeAndState();
+    // When page starts loading (refresh or navigation)
+    if (changeInfo.status === 'loading' && tab.url) {
+        // If this tab had results and is now refreshing, clear state
+        if (downloadState.url && tab.url.includes('tiktok.com')) {
+            console.log('[Background] TikTok page refreshed, clearing state');
+            clearDownloadState();
+        }
     }
 });
 
@@ -64,6 +78,44 @@ async function getServerUrl() {
         console.log('[Background] Using default server URL');
     }
     return serverUrl;
+}
+
+/**
+ * Sync TikTok cookies from browser to server
+ * Called automatically before each download
+ */
+async function syncCookiesToServer() {
+    try {
+        const url = await getServerUrl();
+
+        // Get all TikTok cookies from browser
+        const cookies = await chrome.cookies.getAll({ domain: '.tiktok.com' });
+
+        if (cookies.length === 0) {
+            console.log('[Background] No TikTok cookies found in browser');
+            return false;
+        }
+
+        // Send cookies to server
+        const response = await fetch(`${url}/api/set-cookies`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cookies })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            console.log(`[Background] Cookies synced to server (${cookies.length} cookies)`);
+            return true;
+        } else {
+            console.log('[Background] Failed to sync cookies:', result.error);
+            return false;
+        }
+    } catch (e) {
+        console.log('[Background] Cookie sync error:', e.message);
+        return false;
+    }
 }
 
 /**
@@ -96,15 +148,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 
     if (request.action === 'clearState') {
-        downloadState = {
-            isProcessing: false,
-            url: null,
-            media: null,
-            username: null,
-            error: null
-        };
-        // Clear badge when starting new download
-        chrome.action.setBadgeText({ text: '' });
+        clearDownloadState();
         sendResponse({ cleared: true });
         return true;
     }
@@ -118,6 +162,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'validateUrl') {
         const isValid = isValidTikTokUrl(request.url);
         sendResponse({ valid: isValid });
+        return true;
+    }
+
+    if (request.action === 'updateProgress') {
+        // Update progress in state and persist to storage
+        if (downloadState.isProcessing) {
+            downloadState.progress = request.progress;
+            // Persist to storage so it survives popup close/reopen
+            chrome.storage.local.set({ downloadState });
+        }
+        sendResponse({ updated: true });
         return true;
     }
 
@@ -135,6 +190,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
  */
 async function handleDownload(url) {
     console.log('[Background] Starting download for:', url);
+
+    // Auto-sync cookies from browser to server before download
+    await syncCookiesToServer();
 
     const isPhotoUrl = url.includes('/photo/');
 
@@ -202,9 +260,6 @@ async function handleDownload(url) {
                         chrome.action.setBadgeText({ text: String(media.length) });
                         chrome.action.setBadgeBackgroundColor({ color: '#25F4EE' }); // TikTok cyan for photos
 
-                        // Track URL for cache invalidation
-                        lastProcessedUrl = url;
-
                         console.log('[Background] Photo extraction complete:', media.length, 'items (images + audios)');
                         return; // Skip server call
                     }
@@ -243,9 +298,6 @@ async function handleDownload(url) {
                 error: null
             };
             console.log('[Background] Download complete:', data.media.length, 'items');
-
-            // Track URL for cache invalidation
-            lastProcessedUrl = url;
 
             // Show badge with count (pink for TikTok theme)
             chrome.action.setBadgeText({ text: String(data.media.length) });

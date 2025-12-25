@@ -9,7 +9,8 @@ Download videos, photos, and audio from TikTok with ease. Built with Express.js 
 ## ✨ Features
 
 - 🎬 **Download Videos** - Download TikTok videos in original quality
-- 📸 **Carousel Photos** - Download all photos from TikTok slideshow/carousel posts
+- 📸 **Carousel Photos** - Download all photos from TikTok slideshow/carousel posts (unlimited photos)
+- 💾 **Download All** - One-click button to download entire photo carousel
 - 🎵 **Extract Audio** - Download just the music/audio track
 - 🖼️ **Thumbnails** - Get video cover images
 - 📊 **Video Info** - View likes, comments, shares, and caption
@@ -96,6 +97,7 @@ curl -X POST http://localhost:3000/api/download \
 ## 🔗 Supported URL Formats
 
 - `https://www.tiktok.com/@username/video/1234567890`
+- `https://www.tiktok.com/@username/photo/1234567890` (carousel)
 - `https://vm.tiktok.com/ABC123/`
 - `https://m.tiktok.com/v/1234567890`
 - `https://tiktok.com/t/ABC123/`

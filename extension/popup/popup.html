@@ -33,9 +33,18 @@
 
         <!-- URL Input Section - Always Visible -->
         <div id="inputSection" class="section">
+            <div id="autoDetectBadge" class="auto-detect-badge hidden">
+                Auto-detected from current page
+            </div>
             <div class="input-wrapper">
                 <input type="url" id="urlInput" placeholder="Paste link video TikTok..." autocomplete="off">
-                <button id="pasteBtn" class="paste-btn" title="Paste">📋</button>
+                <button id="pasteBtn" class="paste-btn" title="Paste">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                </button>
             </div>
             <button id="downloadBtn" class="download-btn">
                 <span>Download</span>
@@ -63,7 +72,7 @@
 
         <!-- Error State -->
         <div id="errorState" class="error-state hidden">
-            <div class="error-icon">❌</div>
+            <div class="error-icon">Error</div>
             <p id="errorMessage">Error</p>
             <button id="retryBtn" class="retry-btn">Coba Lagi</button>
         </div>
@@ -72,23 +81,26 @@
         <div id="resultsSection" class="results-section hidden">
             <div class="results-header">
                 <span id="mediaCount">0 media</span>
+                <button id="downloadAllBtn" class="download-all-btn" title="Download semua foto/video">
+                    Download Semua
+                </button>
             </div>
             <div id="mediaList" class="media-list"></div>
 
             <!-- Video Info -->
             <div id="videoInfo" class="video-info hidden">
                 <div class="info-row">
-                    <span class="info-label">👤 User:</span>
+                    <span class="info-label">User:</span>
                     <span id="infoUsername" class="info-value">-</span>
                 </div>
                 <div id="captionRow" class="info-row caption-row hidden">
-                    <span class="info-label">📝 Caption:</span>
+                    <span class="info-label">Caption:</span>
                     <span id="infoCaption" class="info-value caption">-</span>
                 </div>
                 <div id="statsRow" class="info-row stats-row hidden">
-                    <span class="stat">❤️ <span id="statLikes">0</span></span>
-                    <span class="stat">💬 <span id="statComments">0</span></span>
-                    <span class="stat">🔄 <span id="statShares">0</span></span>
+                    <span class="stat">Likes: <span id="statLikes">0</span></span>
+                    <span class="stat">Comments: <span id="statComments">0</span></span>
+                    <span class="stat">Shares: <span id="statShares">0</span></span>
                 </div>
             </div>
         </div>

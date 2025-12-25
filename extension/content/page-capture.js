@@ -85,130 +85,311 @@
                 .replace(/\\/g, '');
         };
 
-        // PRIORITY for photos: Use Performance API to find photomode images from network
+        // PRIORITY for photos: Use Post ID and page data for accurate extraction
         if (isPhotoPage) {
-            console.log('[TikDown] Photo page detected - checking for carousel...');
+            console.log('[TikDown] Photo page detected - using Post ID extraction');
 
-            // Helper function to get photomode URLs from Performance API (deduplicated by image ID)
-            const getPhotomodeUrls = () => {
-                const entries = performance.getEntriesByType('resource');
-                const urls = [];
-                const seenImageIds = new Set();
+            // Extract Post ID from URL
+            const postIdMatch = window.location.href.match(/photo\/(\d+)/);
+            const postId = postIdMatch ? postIdMatch[1] : null;
+            console.log('[TikDown] Post ID:', postId);
 
-                entries.forEach(entry => {
-                    const url = entry.name;
-                    const isPhotoContent = (
-                        url.includes('tiktokcdn') &&
-                        (url.includes('photomode-sg') || url.includes('photomode-image') || url.includes('tplv-photomode'))
-                    );
-                    if (isPhotoContent && (url.includes('.jpeg') || url.includes('.jpg') || url.includes('.png') || url.includes('.webp'))) {
-                        // Extract unique image ID to deduplicate resolutions
-                        // URL format: /photomode-sg/IMAGEID~tplv-...
-                        const imageIdMatch = url.match(/photomode-sg\/([a-zA-Z0-9]+)/);
-                        const imageId = imageIdMatch ? imageIdMatch[1] : url;
+            // Helper function to filter only carousel photos (content URLs, not avatars)
+            const filterCarouselPhotos = (urls) => {
+                // Valid content patterns (expanded to include more CDN paths)
+                const validPatterns = [
+                    'photomode-sg', 'photomode-image', 'tplv-photomode', 'photomode',
+                    'tos-alisg-i-', 'tos-alisg-p-', 'tos-alisg-avt-0068',
+                    'tos-maliva-i-', 'tos-maliva-p-', 'tos-maliva-avt-0068',
+                    '/obj/', 'tiktok-obj'
+                ];
+                // Patterns to ALWAYS exclude (icons, avatars, etc)
+                const excludePatterns = [
+                    '/avatar/', 'profile_pic', '/music/', 'logo', 'icon', 'emoji',
+                    '100x100', '150x150', '192x192', '200x200', 'cover_small'
+                ];
 
-                        if (!seenImageIds.has(imageId)) {
-                            seenImageIds.add(imageId);
-                            urls.push(url);
-                        }
-                    }
+                // Filter: must be TikTok CDN, not excluded, prefer valid patterns
+                return urls.filter(url => {
+                    const lower = url.toLowerCase();
+                    // Must be from TikTok CDN
+                    if (!lower.includes('tiktokcdn') && !lower.includes('muscdn')) return false;
+                    // Must NOT match exclude patterns
+                    if (excludePatterns.some(p => lower.includes(p))) return false;
+                    // Prefer URLs with valid content patterns, but also accept image files
+                    return validPatterns.some(p => lower.includes(p)) ||
+                        lower.match(/\.(jpeg|jpg|png|webp)(\?|$)/);
                 });
-                return urls;
             };
 
-            // Helper function to wait
-            const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-            // Check for carousel (pagination dots)
-            const paginationDots = document.querySelectorAll('[class*="DotSlider"] span, [class*="swiper-pagination"] span, [class*="Pagination"] span');
-            const isCarousel = paginationDots.length > 1;
-
-            console.log('[TikDown] Carousel detected:', isCarousel, '| Dots:', paginationDots.length);
-
-            // If carousel, navigate through all slides
-            if (isCarousel) {
-                console.log('[TikDown] 🎠 Carousel mode - navigating through', paginationDots.length, 'slides...');
-
-                const seenUrls = new Set();
-                let slideCount = 0;
-                const maxSlides = 20;
-
-                // First, get URLs from current slide
-                let currentUrls = getPhotomodeUrls();
-                currentUrls.forEach(url => seenUrls.add(url));
-                console.log('[TikDown] Captured', seenUrls.size, 'photos from initial view');
-
-                // Navigate through carousel
-                while (slideCount < maxSlides) {
-                    // Find Next button - TikTok uses various class names
-                    const nextBtn = document.querySelector('[class*="SliderArrowRight"], [class*="arrow-right"], button[aria-label*="next" i], button[aria-label*="Next" i], [class*="swiper-button-next"]');
-
-                    if (!nextBtn || nextBtn.offsetParent === null) {
-                        console.log('[TikDown] No more slides (Next button not found/hidden)');
-                        break;
+            // Helper function to deduplicate by image ID
+            const deduplicateByImageId = (urls) => {
+                const seenIds = new Set();
+                return urls.filter(url => {
+                    // Try multiple patterns to extract image ID
+                    let imageId = null;
+                    let match = url.match(/photomode-sg\/([a-zA-Z0-9]+)(?:~|\/|$)/);
+                    if (match) imageId = match[1];
+                    if (!imageId) {
+                        match = url.match(/tos-[^/]+\/([a-zA-Z0-9]+)(?:~|$)/);
+                        if (match) imageId = match[1];
                     }
+                    if (!imageId) imageId = url;
 
-                    // Click next
-                    nextBtn.click();
-                    slideCount++;
+                    if (seenIds.has(imageId)) return false;
+                    seenIds.add(imageId);
+                    return true;
+                });
+            };
 
-                    // Wait for transition and image load
-                    await wait(600);
+            // METHOD 1: Try TikTok API directly (most reliable)
+            if (postId) {
+                try {
+                    console.log('[TikDown] METHOD 1: Trying TikTok API with postId:', postId);
+                    const apiUrl = `https://www.tiktok.com/api/item/detail/?itemId=${postId}`;
+                    const response = await fetch(apiUrl, { credentials: 'include' });
 
-                    // Capture new photomode URLs
-                    currentUrls = getPhotomodeUrls();
-                    let newCount = 0;
-                    currentUrls.forEach(url => {
-                        if (!seenUrls.has(url)) {
-                            seenUrls.add(url);
-                            newCount++;
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log('[TikDown] API statusCode:', data.statusCode);
+
+                        if (data.statusCode === 0 && data.itemInfo?.itemStruct?.imagePost?.images) {
+                            const images = data.itemInfo.itemStruct.imagePost.images;
+                            console.log('[TikDown] API found', images.length, 'images in imagePost');
+
+                            const imageUrls = [];
+                            for (const img of images) {
+                                const urlList = img.imageURL?.urlList || [];
+                                console.log('[TikDown] Image urlList:', urlList.length, 'URLs');
+
+                                if (urlList.length > 0) {
+                                    // Get the best URL (prefer larger/non-avatar ones)
+                                    let photoUrl = urlList.find(url =>
+                                        url.includes('photomode') &&
+                                        !url.toLowerCase().includes('avt-') &&
+                                        !url.toLowerCase().includes('avatar')
+                                    );
+
+                                    // Fallback: get first non-avatar URL
+                                    if (!photoUrl) {
+                                        photoUrl = urlList.find(url =>
+                                            !url.toLowerCase().includes('avatar') &&
+                                            !url.toLowerCase().includes('/avt-') &&
+                                            url.includes('tiktokcdn')
+                                        );
+                                    }
+
+                                    // Last fallback: just get first URL
+                                    if (!photoUrl && urlList[0]) {
+                                        photoUrl = urlList[0];
+                                    }
+
+                                    if (photoUrl && !imageUrls.includes(photoUrl)) {
+                                        imageUrls.push(photoUrl);
+                                    }
+                                }
+                            }
+
+                            if (imageUrls.length > 0) {
+                                result.username = data.itemInfo.itemStruct.author?.uniqueId;
+                                result.caption = data.itemInfo.itemStruct.desc;
+                                result.isPhoto = true;
+
+                                const filtered = deduplicateByImageId(filterCarouselPhotos(imageUrls));
+                                filtered.forEach(url => {
+                                    result.images.push({ url, type: 'api' });
+                                });
+
+                                console.log('[TikDown] ✅ API extracted', result.images.length, 'carousel photos');
+                                return result;
+                            } else {
+                                console.log('[TikDown] API: No valid image URLs found');
+                            }
+                        } else {
+                            console.log('[TikDown] API: No imagePost data found');
                         }
-                    });
-
-                    console.log('[TikDown] Slide', slideCount + 1, '- Captured', newCount, 'new photos | Total:', seenUrls.size);
-
-                    // If no new photos found for 2 consecutive slides, stop
-                    if (newCount === 0 && slideCount > 2) {
-                        break;
+                    } else {
+                        console.log('[TikDown] API response not OK:', response.status);
                     }
+                } catch (e) {
+                    console.log('[TikDown] API error:', e.message);
                 }
+            }
 
-                // Add all unique URLs to result
-                seenUrls.forEach(url => {
-                    if (!result.images.some(i => i.url === url)) {
-                        result.images.push({ url, type: 'carousel' });
+            // METHOD 2: Extract from page data JSON
+            const scriptEl = document.getElementById('__UNIVERSAL_DATA_FOR_REHYDRATION__');
+            if (scriptEl) {
+                try {
+                    const data = JSON.parse(scriptEl.textContent);
+                    const defaultScope = data?.['__DEFAULT_SCOPE__'];
+
+                    console.log('[TikDown] Available keys:', defaultScope ? Object.keys(defaultScope) : 'none');
+
+                    let item = defaultScope?.['webapp.video-detail']?.itemInfo?.itemStruct;
+                    if (!item) {
+                        item = defaultScope?.['webapp.post-detail']?.itemInfo?.itemStruct;
+                    }
+
+                    // Search through ALL keys if still not found
+                    if (!item && defaultScope) {
+                        for (const key of Object.keys(defaultScope)) {
+                            const scopeData = defaultScope[key];
+                            if (scopeData?.itemInfo?.itemStruct?.imagePost?.images) {
+                                item = scopeData.itemInfo.itemStruct;
+                                console.log('[TikDown] Found item in key:', key);
+                                break;
+                            }
+                        }
+                    }
+
+                    if (item?.imagePost?.images && Array.isArray(item.imagePost.images)) {
+                        console.log('[TikDown] Found imagePost with', item.imagePost.images.length, 'images');
+
+                        const imageUrls = [];
+                        for (const img of item.imagePost.images) {
+                            if (img.imageURL?.urlList && img.imageURL.urlList.length > 0) {
+                                // Get URL that's NOT an avatar
+                                const photoUrl = img.imageURL.urlList.find(url =>
+                                    (url.includes('photomode') || url.includes('tos-alisg-i-') || url.includes('tos-maliva-i-')) &&
+                                    !url.toLowerCase().includes('avt-') && !url.toLowerCase().includes('avatar')
+                                ) || img.imageURL.urlList.find(url =>
+                                    !url.toLowerCase().includes('avt-') && !url.toLowerCase().includes('avatar')
+                                );
+
+                                if (photoUrl && !imageUrls.includes(photoUrl)) {
+                                    imageUrls.push(photoUrl);
+                                }
+                            }
+                        }
+
+                        if (imageUrls.length > 0) {
+                            result.username = item.author?.uniqueId || item.author?.nickname;
+                            result.caption = item.desc;
+                            result.isPhoto = true;
+
+                            const filtered = deduplicateByImageId(filterCarouselPhotos(imageUrls));
+                            filtered.forEach(url => {
+                                result.images.push({ url, type: 'imagePost' });
+                            });
+
+                            console.log('[TikDown] ✅ Extracted', result.images.length, 'photos from imagePost data');
+                            return result;
+                        }
+                    }
+                } catch (e) {
+                    console.log('[TikDown] Page data parse error:', e.message);
+                }
+            }
+
+            // METHOD 3: Performance API fallback (expanded patterns)
+            try {
+                console.log('[TikDown] Trying Performance API...');
+                const perfUrls = [];
+                performance.getEntriesByType('resource').forEach(entry => {
+                    const url = entry.name.toLowerCase();
+                    // Capture all image files from TikTok CDN
+                    if (url.includes('tiktokcdn') &&
+                        (url.includes('.jpeg') || url.includes('.jpg') || url.includes('.png') || url.includes('.webp'))) {
+                        // Exclude avatars and icons
+                        if (!url.includes('/avatar/') && !url.includes('profile_pic') &&
+                            !url.includes('/music/') && !url.includes('100x100') &&
+                            !url.includes('150x150') && !url.includes('192x192')) {
+                            perfUrls.push(entry.name);
+                        }
                     }
                 });
 
-                console.log('[TikDown] ✅ Carousel complete:', result.images.length, 'total photos');
-
-            } else {
-                // Single photo - use existing logic
-                try {
-                    const photomodeUrls = getPhotomodeUrls();
-
-                    // Sort by URL length (longer URLs tend to be more specific/actual content)
-                    photomodeUrls.sort((a, b) => b.length - a.length);
-
-                    photomodeUrls.forEach(url => {
+                if (perfUrls.length > 0) {
+                    console.log('[TikDown] Performance API raw URLs:', perfUrls.length);
+                    const filtered = deduplicateByImageId(filterCarouselPhotos(perfUrls));
+                    filtered.forEach(url => {
                         if (!result.images.some(i => i.url === url)) {
                             result.images.push({ url, type: 'performance-api' });
-                            console.log('[TikDown] ✅ Captured photomode image:', url.substring(0, 100) + '...');
                         }
                     });
+                    console.log('[TikDown] ✅ Performance API found', result.images.length, 'unique photos');
+                }
+            } catch (e) {
+                console.log('[TikDown] Performance API error:', e.message);
+            }
 
-                    console.log('[TikDown] Performance API found', result.images.length, 'photomode images');
-                } catch (e) {
-                    console.log('[TikDown] Performance API failed:', e.message);
+            // METHOD 4: DOM extraction - get large visible images
+            if (result.images.length === 0) {
+                console.log('[TikDown] Trying DOM extraction...');
+                const domImages = [];
+                document.querySelectorAll('img').forEach(img => {
+                    const src = img.src || img.currentSrc;
+                    if (!src) return;
+
+                    const width = Math.max(img.naturalWidth || 0, img.width || 0);
+                    const height = Math.max(img.naturalHeight || 0, img.height || 0);
+
+                    // Must be large (> 300px)
+                    if (width > 300 || height > 300) {
+                        if (src.includes('tiktokcdn') && !src.includes('/avatar/') &&
+                            !src.includes('profile_pic') && !src.includes('/music/')) {
+                            domImages.push(src);
+                        }
+                    }
+                });
+
+                if (domImages.length > 0) {
+                    const filtered = deduplicateByImageId(filterCarouselPhotos(domImages));
+                    filtered.forEach(url => {
+                        if (!result.images.some(i => i.url === url)) {
+                            result.images.push({ url, type: 'dom' });
+                        }
+                    });
+                    console.log('[TikDown] ✅ DOM extraction found', result.images.length, 'photos');
+                }
+            }
+
+            // METHOD 5: Carousel Navigation - click through slides
+            const carouselExists = document.querySelector('[class*="SliderArrow"], [class*="arrow"], [class*="Swiper"]');
+            if (carouselExists && result.images.length < 3) {
+                console.log('[TikDown] Carousel detected, navigating slides...');
+
+                // Function to get current visible image
+                const getCurrentImage = () => {
+                    const imgs = document.querySelectorAll('img');
+                    for (const img of imgs) {
+                        const rect = img.getBoundingClientRect();
+                        const src = img.src;
+                        if (rect.width > 300 && rect.height > 300 &&
+                            src && src.includes('tiktokcdn') &&
+                            !src.includes('/avatar/')) {
+                            return src;
+                        }
+                    }
+                    return null;
+                };
+
+                // Try clicking next button
+                for (let i = 0; i < 20; i++) {
+                    await new Promise(r => setTimeout(r, 300));
+
+                    const nextBtn = document.querySelector('[class*="SliderArrowRight"], [class*="arrow-right"], button[aria-label*="next" i]');
+                    if (nextBtn) {
+                        nextBtn.click();
+                        await new Promise(r => setTimeout(r, 400));
+
+                        const currentImg = getCurrentImage();
+                        if (currentImg && !result.images.some(i => i.url === currentImg)) {
+                            result.images.push({ url: currentImg, type: 'carousel-nav' });
+                            console.log('[TikDown] Slide', i + 1, ': captured new photo');
+                        }
+                    } else {
+                        break;
+                    }
                 }
             }
 
             if (result.images.length > 0) {
                 result.isPhoto = true;
-                // Get username
                 const urlMatch = window.location.href.match(/@([\w.-]+)/);
                 if (urlMatch) result.username = urlMatch[1];
-                return result; // Return early with photomode images
+                console.log('[TikDown] ✅ Total photos extracted:', result.images.length);
+                return result;
             }
         }
 
@@ -235,10 +416,14 @@
                             if (item.imagePost?.images) {
                                 for (const img of item.imagePost.images) {
                                     if (img.imageURL?.urlList?.[0]) {
-                                        result.images.push({
-                                            url: decode(img.imageURL.urlList[0]),
-                                            type: 'photo'
-                                        });
+                                        const imgUrl = decode(img.imageURL.urlList[0]);
+                                        // Check for duplicates before adding
+                                        if (!result.images.some(i => i.url === imgUrl)) {
+                                            result.images.push({
+                                                url: imgUrl,
+                                                type: 'photo'
+                                            });
+                                        }
                                     }
                                 }
                             }

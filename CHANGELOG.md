@@ -2,6 +2,29 @@
 
 All notable changes to TikDown will be documented in this file.
 
+## [1.2.0] - 2025-12-24
+
+### Added
+- 💾 **Download All Button** - One-click download for all carousel photos
+- 🍪 **Cookie Auto-Refresh** - Automatically syncs TikTok cookies from browser before each download
+- 🔍 **Auto-detect on Page** - Automatically detects video/photo when browsing TikTok, shows badge indicator
+- Progress indicator on button showing download progress (e.g. ⏳ 3/18)
+- Support for carousels with unlimited photos (tested up to 18+)
+
+### Fixed
+- 🔧 **Carousel Extraction Reliability** - Fixed issue where browser pool cache interfered with photo capture
+- Photo stories now use fresh browser instance for reliable network interception
+- Fixed "Mengekstrak video..." text to "Mengekstrak media..." for photo content
+
+### Improved
+- 🖼️ **Larger Thumbnail Preview** - Preview popup enlarged from 320x400 to 450x600 with pop-in animation
+- Enhanced thumbnail hover effect with pink glow border
+- More robust photomode image detection
+- Cleaner console output (removed verbose debug logs)
+- Better deduplication of carousel images
+
+---
+
 ## [1.1.0] - 2025-12-22
 
 ### Added
