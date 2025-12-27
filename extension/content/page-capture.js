@@ -96,16 +96,16 @@
 
             // Helper function to filter only carousel photos (content URLs, not avatars)
             const filterCarouselPhotos = (urls) => {
-                // Valid content patterns (expanded to include more CDN paths)
+                // Valid content patterns - ONLY real photo content, NO avatars
                 const validPatterns = [
                     'photomode-sg', 'photomode-image', 'tplv-photomode', 'photomode',
-                    'tos-alisg-i-', 'tos-alisg-p-', 'tos-alisg-avt-0068',
-                    'tos-maliva-i-', 'tos-maliva-p-', 'tos-maliva-avt-0068',
+                    'tos-alisg-i-', 'tos-alisg-p-',  // -i- = image, -p- = photo
+                    'tos-maliva-i-', 'tos-maliva-p-',
                     '/obj/', 'tiktok-obj'
                 ];
                 // Patterns to ALWAYS exclude (icons, avatars, etc)
                 const excludePatterns = [
-                    '/avatar/', 'profile_pic', '/music/', 'logo', 'icon', 'emoji',
+                    '/avatar/', '-avt-', 'profile_pic', '/music/', 'logo', 'icon', 'emoji',
                     '100x100', '150x150', '192x192', '200x200', 'cover_small'
                 ];
 

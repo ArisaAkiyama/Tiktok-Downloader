@@ -47,7 +47,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
             // Show badge to indicate content is ready to download
             const isPhoto = tab.url.includes('/photo/');
             chrome.action.setBadgeText({ text: '●', tabId });
-            chrome.action.setBadgeBackgroundColor({ color: isPhoto ? '#25F4EE' : '#FE2C55', tabId });
+            chrome.action.setBadgeBackgroundColor({ color: isPhoto ? '#FFD700' : '#FE2C55', tabId }); // Yellow for photo, Red for video
             console.log('[Background] Detected downloadable TikTok content:', isPhoto ? 'photo' : 'video');
         } else if (tab.url.includes('tiktok.com')) {
             // On TikTok but not on video/photo page - clear badge
@@ -211,62 +211,13 @@ async function handleDownload(url) {
     // Persist state
     await chrome.storage.local.set({ downloadState });
 
+
     try {
-        // For photo URLs, try to extract from current page first (bypasses server for private accounts)
+        // ALWAYS use server for photos - server uses Puppeteer with network interception
+        // which is more reliable than content script DOM extraction
+        // Content script often captures wrong images (avatars, thumbnails, etc.)
         if (isPhotoUrl) {
-            console.log('[Background] Photo URL detected, trying current page extraction...');
-            const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-            if (tabs[0]) {
-                try {
-                    const pageData = await chrome.tabs.sendMessage(tabs[0].id, { action: 'extractFromPage' });
-
-                    if (pageData?.success && pageData.data?.images?.length > 0) {
-                        console.log('[Background] Extracted', pageData.data.images.length, 'images from current page');
-
-                        // Convert images to media format
-                        const media = pageData.data.images.map((img, index) => ({
-                            type: 'image',
-                            url: img.url,
-                            thumbnail: img.url,
-                            filename: `${pageData.data.username || 'photo'}_${Date.now()}_${index + 1}.jpg`,
-                            hasWatermark: false
-                        }));
-
-                        // Also add audios if present
-                        if (pageData.data.audios && pageData.data.audios.length > 0) {
-                            pageData.data.audios.forEach(audio => {
-                                media.push({
-                                    type: 'audio',
-                                    url: audio.url,
-                                    title: audio.title,
-                                    filename: `${pageData.data.username || 'audio'}_${Date.now()}.mp3`,
-                                    hasWatermark: false
-                                });
-                            });
-                        }
-
-                        downloadState = {
-                            isProcessing: false,
-                            url: url,
-                            media: media,
-                            username: pageData.data.username || 'unknown',
-                            caption: pageData.data.caption || '',
-                            thumbnail: media[0]?.url,
-                            error: null,
-                            isPhoto: true
-                        };
-
-                        await chrome.storage.local.set({ downloadState });
-                        chrome.action.setBadgeText({ text: String(media.length) });
-                        chrome.action.setBadgeBackgroundColor({ color: '#25F4EE' }); // TikTok cyan for photos
-
-                        console.log('[Background] Photo extraction complete:', media.length, 'items (images + audios)');
-                        return; // Skip server call
-                    }
-                } catch (e) {
-                    console.log('[Background] Current page extraction failed:', e.message);
-                }
-            }
+            console.log('[Background] Photo URL detected, using server for reliable extraction...');
         }
 
         // Create abort controller with 2 minute timeout (for server fallback)

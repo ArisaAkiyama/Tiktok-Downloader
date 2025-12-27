@@ -427,8 +427,15 @@ function createMediaItem(item, index) {
     const isAudio = item.type === 'audio';
     const isImage = item.type === 'image';
 
-    // Thumbnail - use direct URL or fallback to icon
-    const thumbUrl = item.thumbnail || (isImage ? item.url : null);
+    // Thumbnail - for videos, proxy through server to bypass CORS
+    // For images, use direct URL (they're already proxied or accessible)
+    let thumbUrl = item.thumbnail || (isImage ? item.url : null);
+
+    // Proxy TikTok CDN thumbnails through local server to bypass CORS
+    if (thumbUrl && isVideo && (thumbUrl.includes('tiktokcdn') || thumbUrl.includes('muscdn'))) {
+        thumbUrl = `${settings.serverUrl}/api/proxy?url=${encodeURIComponent(thumbUrl)}`;
+    }
+
     const thumbHtml = thumbUrl
         ? `<img class="media-thumb" src="${thumbUrl}" alt="Thumbnail" data-index="${index}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"><div class="media-thumb-fallback" style="display:none;align-items:center;justify-content:center;font-size:14px;width:48px;height:48px;background:#333;border-radius:4px;">${isVideo ? 'VID' : isImage ? 'IMG' : 'AUD'}</div>`
         : `<div class="media-thumb" style="display:flex;align-items:center;justify-content:center;font-size:14px;">${isVideo ? 'VID' : isImage ? 'IMG' : 'AUD'}</div>`;
